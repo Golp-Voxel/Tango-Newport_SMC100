@@ -540,6 +540,37 @@ class SMC100(object):
         resp = self.sendcmd('SA', str(new_addr))
         print(resp)
     return 
+  
+
+
+  def get_acceleration(self):
+    resp = self.sendcmd('AC', '?', expect_response=True, retry=10)
+    print(resp)
+    return
+  
+  def set_acceleration(self,new_acc):
+    resp = self.sendcmd('AC', str(new_acc))
+    print(resp)
+    return 
+  
+
+  def get_stepper_motor_configuration(self):
+    resp = self.sendcmd('FR', '?', expect_response=True, retry=10)
+    print(resp)
+    return
+  
+  def set_stepper_motor_configuration(self,new_addr=1):
+    if new_addr == 1:
+        print("The controller is by default address set as 1\n\r")
+    else:
+        resp = self.sendcmd('FR', str(new_addr))
+        print(resp)
+    return 
+  
+  def get_motion_time_for_relative_move(self,move):
+    resp = self.sendcmd('PT', str(move), expect_response=True, retry=10)
+    print(resp)
+    return
 #______________________________________________________________________________________________ 
 
 
