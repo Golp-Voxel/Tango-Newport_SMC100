@@ -62,7 +62,13 @@ class SMC100InvalidResponseException(Exception):
     s = 'Invalid response to %s: %s'%(cmd, resp)
     super(SMC100InvalidResponseException, self).__init__(s)
 
+""""
+    TODO:
+    Change the class to just establish the communication and pass the address to the function.
+    Because this initial was built for only 1 connected controller, but we are going to use 3 different controllers.
+    with only one serial port. 
 
+"""
 class SMC100(object):
   """
   Class to interface with Newport's SMC100 controller.
@@ -285,22 +291,12 @@ class SMC100(object):
 
 
 
-#_______________________ Mandatory functions need to send and _________________________________
 
 
-  def get_controller_address(self):
-    resp = self.sendcmd('SA', '?', expect_response=True, retry=10)
-    print(resp)
-    return
-  
-  def set_controller_address(self,new_addr=1):
-    if new_addr == 1:
-        print("The controller is by default address set as 1\n\r")
-    else:
-        resp = self.sendcmd('SA', str(new_addr))
-        print(resp)
-    return 
-    
+
+#_______________________ Function to operate the Controller SMC00  ____________________________
+#____________________________ and the motors connected to it __________________________________
+
 
   def reset_and_configure(self):
     """
@@ -520,6 +516,31 @@ class SMC100(object):
         self._emit('Read timed out, retrying in 1 second')
         self._sleepfunc(1)
         continue
+      
+#______________________________________________________________________________________________ 
+
+
+
+
+
+
+
+#_______________________________ Function TO BE TESTED _________________________________
+      
+
+  def get_controller_address(self):
+    resp = self.sendcmd('SA', '?', expect_response=True, retry=10)
+    print(resp)
+    return
+  
+  def set_controller_address(self,new_addr=1):
+    if new_addr == 1:
+        print("The controller is by default address set as 1\n\r")
+    else:
+        resp = self.sendcmd('SA', str(new_addr))
+        print(resp)
+    return 
+#______________________________________________________________________________________________ 
 
 
 
