@@ -21,7 +21,7 @@ from math import floor
 code = 'UTF-8'
 
 # never wait for more than this e.g. during wait_states
-MAX_WAIT_TIME_SEC = 12
+MAX_WAIT_TIME_SEC = 30
 
 # time to wait after sending a command. This number has been arrived at by
 # trial and error
@@ -38,6 +38,7 @@ STATE_CONFIGURATION = '14'
 STATE_DISABLE_FROM_READY = '3C'
 STATE_DISABLE_FROM_MOVING = '3D'
 STATE_DISABLE_FROM_JOGGING = '3E'
+HOMING_RS232C = '1E'
 
 print('SMC')
 
@@ -94,7 +95,6 @@ class SMC100(object):
   """
 
   _port = None
-  _smcID = None
 
   _silent = True
 
@@ -102,7 +102,7 @@ class SMC100(object):
 
 #___________________ Default function need for initiate and kill the classe ___________________ 
 
-  def __init__(self, smcID, port, backlash_compensation=True, silent=True, sleepfunc=None):
+  def __init__(self, port, backlash_compensation=True, silent=True, sleepfunc=None):
     """
     If backlash_compensation is False, no backlash compensation will be done.
 
@@ -124,7 +124,6 @@ class SMC100(object):
 
     super(SMC100, self).__init__()
 
-    assert smcID is not None
     assert port is not None
 
     if sleepfunc is not None:
@@ -145,8 +144,6 @@ class SMC100(object):
         xonxoff = True,
         timeout = 0.050)
 
-    self._smcID = str(smcID)
-
   def close(self):
     if self._port:
       self._port.close()
@@ -163,7 +160,7 @@ class SMC100(object):
 #_______________________ Mandatory functions need to send and _________________________________
 #_______________________ read the message from the Controller __________________________________ 
 
-  def sendcmd(self, command, argument=None, expect_response=False, retry=False):
+  def sendcmd(self, ID, command, argument=None, wait_time=COMMAND_WAIT_TIME_SEC, expect_response=False, retry=False):
     """
     Send the specified command along with the argument, if any. The response
     is checked to ensure it has the correct prefix, and is returned WITHOUT
@@ -192,22 +189,21 @@ class SMC100(object):
     if argument is None:
       argument = ''
 
-    prefix = self._smcID + command
+    prefix = str(ID) + command
     tosend = prefix + str(argument)
 
     # prevent certain commands from being retried automatically
-    no_retry_commands = ['PR', 'OR']
+    no_retry_commands = ['PR', 'OR', 'OT']
     if command in no_retry_commands:
       retry = False
 
     while self._port is not None:
       if expect_response:
-        self._port.flushInput()
+        self._port.reset_input_buffer()
 
-      self._port.flushOutput()
+      self._port.reset_output_buffer()
 
-      self._port.write(tosend.encode())
-      self._port.write(b'\r\n')
+      self._port.write(tosend.encode()+b'\r\n')
 
       self._port.flush()
 
@@ -232,7 +228,7 @@ class SMC100(object):
         # we only need to delay when we are not waiting for a response
         now = time.time()
         dt = now - self._last_sendcmd_time
-        dt = COMMAND_WAIT_TIME_SEC - dt
+        dt = wait_time - dt
         if dt > 0:
           self._sleepfunc(dt)
         
@@ -270,8 +266,9 @@ class SMC100(object):
     #   else:
     #     raise SMC100RS232CorruptionException(c)
     test = self._port.read_until(Terminator)
-    print("Before decode: "+test)
-    line = test.decode(code)
+    print("Before decode: ")
+    print(test)
+    line = test.decode(code)[:-2]
     self._emit('read', line)
 
     return line
@@ -298,40 +295,40 @@ class SMC100(object):
 #____________________________ and the motors connected to it __________________________________
 
 
-  def reset_and_configure(self):
+  def reset_and_configure(self,ID):
     """
     Configures the controller by resetting it and then asking it to load
     stage parameters from an ESP compatible stage. This is then followed
     by a homing action.
     """
-    self.sendcmd('RS')
-    self.sendcmd('RS')
+    self.sendcmd(ID,'RS')
+    self.sendcmd(ID,'RS')
 
     self._sleepfunc(3)
 
-    self.wait_states(STATE_NOT_REFERENCED_FROM_RESET, ignore_disabled_states=True)
+    self.wait_states(ID,STATE_NOT_REFERENCED_FROM_RESET, ignore_disabled_states=True)
 
-    stage = self.sendcmd('ID', '?', True)
+    stage = self.sendcmd(ID,'ID', '?', True)
     print(f'Found stage {stage}')
 
     # enter config mode
-    self.sendcmd('PW', 1)
+    self.sendcmd(ID,'PW', 1)
 
-    self.wait_states(STATE_CONFIGURATION)
+    self.wait_states(ID,STATE_CONFIGURATION)
 
     # load stage parameters
-    self.sendcmd('ZX', 1)
+    self.sendcmd(ID,'ZX', 1)
 
     # enable stage ID check
-    self.sendcmd('ZX', 2)
+    self.sendcmd(ID,'ZX', 2)
 
     # exit configuration mode
-    self.sendcmd('PW', 0)
+    self.sendcmd(ID,'PW', 0)
 
     # wait for us to get back into NOT REFERENCED state
-    self.wait_states(STATE_NOT_REFERENCED_FROM_CONFIGURATION)
+    self.wait_states(ID,STATE_NOT_REFERENCED_FROM_CONFIGURATION)
 
-  def home(self, waitStop=True):
+  def home(self, ID, waitStop=True):
     """
     Homes the controller. If waitStop is True, then this method returns when
     homing is complete.
@@ -344,28 +341,31 @@ class SMC100(object):
     Calling this method is necessary to take the controller out of not referenced
     state after a restart.
     """
-    self.sendcmd('OR')
+    # time_to_s = self.sendcmd(ID,'OT','?', expect_response=True, retry=10)
+    
+    self.sendcmd(ID,'OR')
     if waitStop:
       # wait for the controller to be ready
-      st = self.wait_states((STATE_READY_FROM_HOMING, STATE_READY_FROM_MOVING))
+      st = self.wait_states(ID,[STATE_READY_FROM_HOMING, STATE_READY_FROM_MOVING,HOMING_RS232C])
       if st == STATE_READY_FROM_MOVING:
-        self.move_absolute_um(0, waitStop=True)
+        self.move_absolute_um(ID,0, waitStop=True)
     else:
-      self.move_absolute_um(0, waitStop=False)
+      self.move_absolute_um(ID,0, waitStop=False)
 
-  def stop(self):
-    self.sendcmd('ST')
+  def stop(self,ID):
+    self.sendcmd(ID,'ST')
 
-  def get_status(self, silent=False):
+  def get_status(self, ID,wait_time=COMMAND_WAIT_TIME_SEC, silent=False):
     """
     Executes TS? and returns the the error code as integer and state as string
     as specified on pages 64 - 65 of the manual.
     """
 
-    resp = self.sendcmd('TS', '?', expect_response=True, retry=10)
+    resp = self.sendcmd(ID,'TS', '?',wait_time, expect_response=True, retry=10)
     errors = int(resp[0:4], 16)
     state = resp[4:]
 
+    print(len(state))
     assert len(state) == 2
     
     if not silent:
@@ -414,29 +414,29 @@ class SMC100(object):
         print('  state: JOGGING from DISABLE')
     return errors, state
 
-  def get_position_mm(self):
-    dist_mm = float(self.sendcmd('TP', '?', expect_response=True, retry=10))
+  def get_position_mm(self,ID):
+    dist_mm = float(self.sendcmd(ID,'TP', '?', expect_response=True, retry=10))
     return dist_mm
 
   def get_position_um(self):
     return int(self.get_position_mm()*1000)
 
-  def move_relative_mm(self, dist_mm, waitStop=True):
+  def move_relative_mm(self, ID, dist_mm, waitStop=True):
     """
     Moves the stage relatively to the current position by the given distance given in mm
 
     If waitStop is True then this method returns when the move is completed.
     """
-    self.sendcmd('PR', dist_mm)
+    self.sendcmd(ID,'PR', dist_mm)
     if waitStop:
       # If we were previously homed, then something like PR0 will have no
       # effect and we end up waiting forever for ready from moving because
       # we never left ready from homing. This is why STATE_READY_FROM_HOMING
       # is included.
-      self.wait_states((STATE_READY_FROM_MOVING, STATE_READY_FROM_HOMING))
+      self.wait_states(ID,(STATE_READY_FROM_MOVING, STATE_READY_FROM_HOMING))
 
 
-  def move_relative_um(self, dist_um, **kwargs):
+  def move_relative_um(self, ID, dist_um, **kwargs):
     """
     Moves the stage relatively to the current position by the given distance given in um. The
     given distance is first converted to an integer.
@@ -444,23 +444,23 @@ class SMC100(object):
     If waitStop is True then this method returns when the move is completed.
     """
     dist_mm = int(dist_um)/1000
-    self.move_relative_mm(dist_mm, **kwargs)
+    self.move_relative_mm(ID,dist_mm, **kwargs)
 
-  def move_absolute_mm(self, position_mm, waitStop=True):
+  def move_absolute_mm(self, ID, position_mm, waitStop=True):
     """
     Moves the stage to the given absolute position given in mm.
 
     If waitStop is True then this method returns when the move is completed.
     """
-    self.sendcmd('PA', position_mm)
+    self.sendcmd(ID,'PA', position_mm)
     if waitStop:
       # If we were previously homed, then something like PR0 will have no
       # effect and we end up waiting forever for ready from moving because
       # we never left ready from homing. This is why STATE_READY_FROM_HOMING
       # is included.
-      self.wait_states((STATE_READY_FROM_MOVING, STATE_READY_FROM_HOMING))
+      self.wait_states(ID,(STATE_READY_FROM_MOVING, STATE_READY_FROM_HOMING))
 
-  def move_absolute_um(self, position_um, **kwargs):
+  def move_absolute_um(self, ID, position_um, **kwargs):
     """
     Moves the stage to the given absolute position given in um. Note that the
     position specified will be floor'd first before conversion to mm.
@@ -468,9 +468,9 @@ class SMC100(object):
     If waitStop is True then this method returns when the move is completed.
     """
     pos_mm = floor(position_um)/1000
-    return self.move_absolute_mm(pos_mm, **kwargs)
+    return self.move_absolute_mm(ID, pos_mm, **kwargs)
 
-  def wait_states(self, targetstates, ignore_disabled_states=False):
+  def wait_states(self, ID, targetstates,wait_time=COMMAND_WAIT_TIME_SEC, ignore_disabled_states=False):
     """
     Waits for the controller to enter one of the the specified target state.
     Controller state is determined via the TS command.
@@ -500,7 +500,7 @@ class SMC100(object):
         raise SMC100WaitTimedOutException()
 
       try:
-        state = self.get_status()[1]
+        state = self.get_status(ID,wait_time)[1]
         if state in targetstates:
           self._emit('in state %s'%(state))
           return state
@@ -528,58 +528,142 @@ class SMC100(object):
 #_______________________________ Function TO BE TESTED _________________________________
       
 
-  def get_controller_address(self):
-    resp = self.sendcmd('SA', '?', expect_response=True, retry=10)
+  def get_controller_address(self,ID):
+    resp = self.sendcmd(ID,'SA', '?', expect_response=True, retry=10)
     print(resp)
     return
   
-  def set_controller_address(self,new_addr=1):
+  def set_controller_address(self, ID,new_addr=1):
     if new_addr == 1:
         print("The controller is by default address set as 1\n\r")
     else:
-        resp = self.sendcmd('SA', str(new_addr))
+        resp = self.sendcmd(ID,'SA', str(new_addr))
         print(resp)
     return 
   
 
 
-  def get_acceleration(self):
-    resp = self.sendcmd('AC', '?', expect_response=True, retry=10)
+  def get_acceleration(self,ID):
+    resp = self.sendcmd(ID,'AC', '?', expect_response=True, retry=10)
     print(resp)
     return
   
-  def set_acceleration(self,new_acc):
-    resp = self.sendcmd('AC', str(new_acc))
+  def set_acceleration(self,ID,new_acc):
+    resp = self.sendcmd(ID,'AC', str(new_acc))
     print(resp)
     return 
   
 
-  def get_stepper_motor_configuration(self):
-    resp = self.sendcmd('FR', '?', expect_response=True, retry=10)
+  def get_stepper_motor_configuration(self,ID):
+    resp = self.sendcmd(ID,'FR', '?', expect_response=True, retry=10)
     print(resp)
     return
   
-  def set_stepper_motor_configuration(self,new_addr=1):
+  def set_stepper_motor_configuration(self,ID,new_addr=1):
     if new_addr == 1:
         print("The controller is by default address set as 1\n\r")
     else:
-        resp = self.sendcmd('FR', str(new_addr))
+        resp = self.sendcmd(ID,'FR', str(new_addr))
         print(resp)
     return 
   
-  def get_motion_time_for_relative_move(self,move):
-    resp = self.sendcmd('PT', str(move), expect_response=True, retry=10)
+  def get_motion_time_for_relative_move(self,ID,move):
+    resp = self.sendcmd(ID,'PT', str(move), expect_response=True, retry=10)
     print(resp)
     return
+  
+#TE
+  def get_last_command_error(self,ID):
+    resp = self.sendcmd(ID,'TE',"", expect_response=True, retry=10)
+    print(resp)
+    return
+  
+  
+  def enter_Config_state(self,ID):
+    resp = self.sendcmd(ID,'PW',"1", expect_response=True, retry=10)
+    print(resp)
+    return
+  def leave_Config_state(self,ID):
+    resp = self.sendcmd(ID,'PW',"0")
+    print(resp)
+    return  
+
+
 #______________________________________________________________________________________________ 
 
+def test_general(ID):
+  print('test_general')
+  smc100 = SMC100('COM10', silent=False)
+  print(smc100.get_position_mm(1))
 
+  smc100.home(ID)
 
-def test_SA():
-    print('test_general')
-    smc100 = SMC100(1, '/dev/ttyS5', silent=False)
-    smc100.get_controller_address()
+  # make sure there are no errors
+  assert smc100.get_status(ID)[0] == 0
 
+  smc100.move_relative_um(ID,5*1000)
+  smc100.move_relative_mm(ID,5)
+
+  #assert smc100.get_status()[0] == 0
+
+  pos = smc100.get_position_mm(ID)
+
+  assert abs(pos-10)<0.001
+
+  smc100.move_relative_mm(ID,-pos)
+
+  #assert smc100.get_status()[0] == 0
+
+  del smc100
+
+def test_AC():
+  smc100 = SMC100('COM10', silent=False)
+  print (smc100.get_position_mm())
+  print ("Acceleration")
+  smc100.get_acceleration()
+  # assert smc100.get_status()[0] == 0
+  smc100.set_acceleration(500)
+  smc100.get_acceleration()
+  # assert smc100.get_status()[0] == 0
+  del smc100
+
+"""
+This was only to set the RS485 Addr
+"""
+
+# def test_SA():
+#     print('test_general')
+#     smc100 = SMC100('COM10', silent=False)
+#     #smc100.enter_Config_state()
+#     smc100.set_controller_address(3)
+#     # time.sleep(10)
+#     assert smc100.get_status()[0] == 0
+#     smc100.get_last_command_error()
+#     smc100.get_controller_address()
+#     smc100.leave_Config_state()
+#     time.sleep(10)
+    
+#     assert smc100.get_status()[0] == 0
+"""
+_____________________________________________________________
+"""  
+
+def tets_home(smc100,ID):
+  smc100.home(ID, waitStop=True)
+
+def init_connection(Com,number_of_controller):
+  smc100 = SMC100(Com, silent=False)
+  for i in range(1,number_of_controller+1):
+    smc100.get_status(i)
+    smc100.home(i, waitStop=True)
+    time.sleep(0.4)
+  return smc100
 
 if __name__ == "__main__":
-    test_SA()
+    smc100 = init_connection('COM10',3)
+    smc100.move_relative_mm(1,5,False)
+    smc100.move_relative_mm(2,5,False)
+    smc100.move_relative_mm(3,5,False)
+    # smc100.move_relative_mm(1,5)
+    # smc100.move_relative_mm(2,5)
+    # smc100.move_relative_mm(3,5)
