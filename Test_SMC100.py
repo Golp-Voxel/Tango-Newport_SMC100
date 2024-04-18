@@ -21,7 +21,8 @@ from math import floor
 code = 'UTF-8'
 
 # never wait for more than this e.g. during wait_states
-MAX_WAIT_TIME_SEC = 30
+MAX_WAIT_TIME_SEC = 120
+TIME_BETWEEN_GET_STATUS = 10
 
 # time to wait after sending a command. This number has been arrived at by
 # trial and error
@@ -352,8 +353,56 @@ class SMC100(object):
     else:
       self.move_absolute_um(ID,0, waitStop=False)
 
+
   def stop(self,ID):
     self.sendcmd(ID,'ST')
+
+
+  def what_is_stattus(state):
+    if state == '0A':
+      print('  state: NOT REFERENCED from reset')
+    elif state == '0B':
+      print('  state: NOT REFERENCED from HOMING')
+    elif state == '0C':
+      print('  state: NOT REFERENCED from CONFIGURATION')
+    elif state == '0D':
+      print('  state: NOT REFERENCED from DISABLE')
+    elif state == '0E':
+      print('  state: NOT REFERENCED from READY')
+    elif state == '0F':
+      print('  state: NOT REFERENCED from MOVING')
+    elif state == '10':
+      print('  state: NOT REFERENCED ESP stage error')
+    elif state == '11':
+      print('  state: NOT REFERENCED from JOGGING')
+    elif state == '14':
+      print('  state: CONFIGURATION')
+    elif state == '1E':
+      print('  state: HOMING commanded from RS-232-C')
+    elif state == '1F':
+      print('  state: HOMING commanded by SMC-RC')
+    elif state == '28':
+      print('  state: MOVING')
+    elif state == '32':
+      print('  state: READY from HOMING')
+    elif state == '33':
+      print('  state: READY from MOVING')
+    elif state == '34':
+      print('  state: READY from DISABLE')
+    elif state == '35':
+      print('  state: READY from JOGGING')
+    elif state == '3C':
+      print('  state: DISABLE from READY')
+    elif state == '3D':
+      print('  state: DISABLE from MOVING')
+    elif state == '3E':
+      print('  state: DISABLE from JOGGING')
+    elif state == '46':
+      print('  state: JOGGING from READY')
+    elif state == '47':
+      print('  state: JOGGING from DISABLE')
+
+
 
   def get_status(self, ID,wait_time=COMMAND_WAIT_TIME_SEC, silent=False):
     """
@@ -370,48 +419,7 @@ class SMC100(object):
     
     if not silent:
       print('status:', end = " " )
-      if state == '0A':
-        print('  state: NOT REFERENCED from reset')
-      elif state == '0B':
-        print('  state: NOT REFERENCED from HOMING')
-      elif state == '0C':
-        print('  state: NOT REFERENCED from CONFIGURATION')
-      elif state == '0D':
-        print('  state: NOT REFERENCED from DISABLE')
-      elif state == '0E':
-        print('  state: NOT REFERENCED from READY')
-      elif state == '0F':
-        print('  state: NOT REFERENCED from MOVING')
-      elif state == '10':
-        print('  state: NOT REFERENCED ESP stage error')
-      elif state == '11':
-        print('  state: NOT REFERENCED from JOGGING')
-      elif state == '14':
-        print('  state: CONFIGURATION')
-      elif state == '1E':
-        print('  state: HOMING commanded from RS-232-C')
-      elif state == '1F':
-        print('  state: HOMING commanded by SMC-RC')
-      elif state == '28':
-        print('  state: MOVING')
-      elif state == '32':
-        print('  state: READY from HOMING')
-      elif state == '33':
-        print('  state: READY from MOVING')
-      elif state == '34':
-        print('  state: READY from DISABLE')
-      elif state == '35':
-        print('  state: READY from JOGGING')
-      elif state == '3C':
-        print('  state: DISABLE from READY')
-      elif state == '3D':
-        print('  state: DISABLE from MOVING')
-      elif state == '3E':
-        print('  state: DISABLE from JOGGING')
-      elif state == '46':
-        print('  state: JOGGING from READY')
-      elif state == '47':
-        print('  state: JOGGING from DISABLE')
+      self.what_is_stattus(state)
     return errors, state
 
   def get_position_mm(self,ID):
@@ -470,6 +478,9 @@ class SMC100(object):
     pos_mm = floor(position_um)/1000
     return self.move_absolute_mm(ID, pos_mm, **kwargs)
 
+
+# I think this is going to be redone 
+
   def wait_states(self, ID, targetstates,wait_time=COMMAND_WAIT_TIME_SEC, ignore_disabled_states=False):
     """
     Waits for the controller to enter one of the the specified target state.
@@ -516,6 +527,7 @@ class SMC100(object):
         self._emit('Read timed out, retrying in 1 second')
         self._sleepfunc(1)
         continue
+    time.sleep(TIME_BETWEEN_GET_STATUS)
       
 #______________________________________________________________________________________________ 
 
@@ -533,6 +545,8 @@ class SMC100(object):
     print(resp)
     return
   
+
+
   def set_controller_address(self, ID,new_addr=1):
     if new_addr == 1:
         print("The controller is by default address set as 1\n\r")
@@ -627,15 +641,21 @@ def test_AC():
   # assert smc100.get_status()[0] == 0
   del smc100
 
+
 """
-This was only to set the RS485 Addr
+_____________________________________________________________
+            This was only to set the RS485 Addr
+        READ SMC100 MANUAL BEFORE USING THIS FUNCTION
+_____________________________________________________________
 """
 
 # def test_SA():
+#     # Change this parameter to the desired communication address (all controllers must have different address)
+#     RS485_Controll_ADR = 4
 #     print('test_general')
 #     smc100 = SMC100('COM10', silent=False)
 #     #smc100.enter_Config_state()
-#     smc100.set_controller_address(3)
+#     smc100.set_controller_address(RS485_Controll_ADR)
 #     # time.sleep(10)
 #     assert smc100.get_status()[0] == 0
 #     smc100.get_last_command_error()
