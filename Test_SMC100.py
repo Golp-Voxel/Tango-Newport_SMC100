@@ -342,7 +342,6 @@ class SMC100(object):
     Calling this method is necessary to take the controller out of not referenced
     state after a restart.
     """
-    # time_to_s = self.sendcmd(ID,'OT','?', expect_response=True, retry=10)
     
     self.sendcmd(ID,'OR')
     if waitStop:
@@ -358,7 +357,7 @@ class SMC100(object):
     self.sendcmd(ID,'ST')
 
 
-  def what_is_stattus(state):
+  def what_is_stattus(self,state):
     if state == '0A':
       print('  state: NOT REFERENCED from reset')
     elif state == '0B':
@@ -580,11 +579,14 @@ class SMC100(object):
         resp = self.sendcmd(ID,'FR', str(new_addr))
         print(resp)
     return 
-  
+  '''
+    This function give a the time the controller calculated it will take to move to the position that was given
+    There is not equivalent function for the absolute movement. 
+  '''
   def get_motion_time_for_relative_move(self,ID,move):
     resp = self.sendcmd(ID,'PT', str(move), expect_response=True, retry=10)
     print(resp)
-    return
+    return resp
   
 #TE
   def get_last_command_error(self,ID):
@@ -593,15 +595,42 @@ class SMC100(object):
     return
   
   
-  def enter_Config_state(self,ID):
-    resp = self.sendcmd(ID,'PW',"1", expect_response=True, retry=10)
-    print(resp)
+  def enter_Config_state(self,ID):   
+    resp = self.sendcmd(ID,'PW',"1")
+    print(self.get_status(ID))
     return
   def leave_Config_state(self,ID):
     resp = self.sendcmd(ID,'PW',"0")
     print(resp)
     return  
 
+
+  def get_backlash_compensati(self,ID):
+    resp = self.sendcmd(ID,'BA',"?", expect_response=True, retry=10)
+    print(resp)
+    return
+  def set_backlash_compensati(self,ID,Backlash):
+    resp = self.sendcmd(ID,'BA',str(Backlash))
+    print(resp)
+    return
+  
+'''
+This CMD is not for PP
+
+'''
+  # def get_encoder_increment_value(self,ID):
+  #   resp = self.sendcmd(ID,'SU',"?", expect_response=True, retry=10)
+  #   print(resp)
+  #   return
+  # def set_encoder_increment_value(self,ID,valeu):
+  #   resp = self.sendcmd(ID,'SU',str(valeu))
+  #   print(resp)
+  #   return
+
+'''
+This CMD is not for PP ^
+
+'''
 
 #______________________________________________________________________________________________ 
 
@@ -668,6 +697,25 @@ _____________________________________________________________
 _____________________________________________________________
 """  
 
+'''
+        This function is one time use 
+'''
+def config_BA(Com,BA_array=[]):
+  smc100 = SMC100(Com, silent=False)
+  if BA_array != []:
+    for i in range(1,len(BA_array)+1): 
+      smc100.enter_Config_state(i)
+      smc100.set_backlash_compensati(i,BA_array[i-1])
+      smc100.leave_Config_state(i)
+      time.sleep(5)
+      smc100.get_backlash_compensati(i)
+  else:
+    return "ERROR"
+"""
+_____________________________________________________________
+"""  
+
+
 def tets_home(smc100,ID):
   smc100.home(ID, waitStop=True)
 
@@ -680,10 +728,12 @@ def init_connection(Com,number_of_controller):
   return smc100
 
 if __name__ == "__main__":
+    # smc100 = SMC100('COM10', silent=False)
     smc100 = init_connection('COM10',3)
+    # config_BA("COM10",["0.00197","0.00185","0.00202"])
+    t = smc100.get_motion_time_for_relative_move(1,5)
     smc100.move_relative_mm(1,5,False)
-    smc100.move_relative_mm(2,5,False)
-    smc100.move_relative_mm(3,5,False)
-    # smc100.move_relative_mm(1,5)
-    # smc100.move_relative_mm(2,5)
-    # smc100.move_relative_mm(3,5)
+    time.sleep(float(t))
+    t = smc100.get_motion_time_for_relative_move(2,3)
+    smc100.move_relative_mm(2,3,False)
+    
