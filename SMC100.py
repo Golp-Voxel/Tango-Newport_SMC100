@@ -22,7 +22,7 @@ code = 'UTF-8'
 
 # never wait for more than this e.g. during wait_states
 MAX_WAIT_TIME_SEC = 120
-TIME_BETWEEN_GET_STATUS = 10
+TIME_BETWEEN_GET_STATUS = 2
 
 # time to wait after sending a command. This number has been arrived at by
 # trial and error
@@ -526,7 +526,7 @@ class SMC100(object):
         self._emit('Read timed out, retrying in 1 second')
         self._sleepfunc(1)
         continue
-    time.sleep(TIME_BETWEEN_GET_STATUS)
+      time.sleep(TIME_BETWEEN_GET_STATUS)
       
 #______________________________________________________________________________________________ 
 
@@ -727,13 +727,15 @@ def init_connection(Com,number_of_controller):
     time.sleep(0.4)
   return smc100
 
-if __name__ == "__main__":
-    # smc100 = SMC100('COM10', silent=False)
-    smc100 = init_connection('COM10',3)
-    # config_BA("COM10",["0.00197","0.00185","0.00202"])
-    t = smc100.get_motion_time_for_relative_move(1,5)
-    smc100.move_relative_mm(1,5,False)
-    time.sleep(float(t))
-    t = smc100.get_motion_time_for_relative_move(2,3)
-    smc100.move_relative_mm(2,3,False)
+# if __name__ == "__main__":
+#     # smc100 = SMC100('COM10', silent=False)
+#     smc100 = init_connection('COM10',3)
+#     # config_BA("COM10",["0.00197","0.00185","0.00202"])
+#     # smc100.get_status(1)
+#     # t = smc100.get_motion_time_for_relative_move(1,5)
+#     # smc100.move_relative_mm(1,16,True)
+#     # time.sleep(float(t))
+#     # t = smc100.get_motion_time_for_relative_move(2,3)
+#     # smc100.move_relative_mm(2,3,True)
+#     del smc100
     
