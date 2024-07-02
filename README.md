@@ -31,13 +31,13 @@ After installing the Tango Device server, that can detect and connect to a Newpo
 ### ConnectCamera
 
  
-'''
+```
 userInfoController =  {
                             "Name"                  : <user_name_given_on Connect>,
                             "COM"                   : 0,
                             "Number_of_controllers" : 3
                         }
-'''
+```
 
 ```python
 ConnectCamera(userInfoController)
