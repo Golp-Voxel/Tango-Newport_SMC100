@@ -1,0 +1,8 @@
+@echo off
+call "C:\ProgramData\anaconda3\condabin\activate.bat"
+
+
+cd C:\Users\Pedro\Desktop\SMC100
+
+python C:\Users\Pedro\Desktop\SMC100\SMC100.py 1  2>&1
+
