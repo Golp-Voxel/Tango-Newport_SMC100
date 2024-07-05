@@ -1,19 +1,3 @@
-"""
-
-This code was a adption of the original work done by Steve Bian that can be found in:
-https://github.com/freespace/pySMC100 
-
-The orginal code was writen in python 2.X so I need to update and correct the diferences.
-
-Also with the manifacture User manuel of the SMC100:
-https://www.newport.com/mam/celum/celum_assets/resources/SMC100CC_and_SMC100PP_-_User_Manual.pdf?3
-
-It was expanse the amount of comands avaiable to the user.
-
-Author of this version: Pedro Rossa 
-
-"""
-
 '''
 Motors:
     Move a given number of steps                            DONE
@@ -63,7 +47,7 @@ class SMC100(Device):
         userInfoController =  {
                                   "Name"                  : <user_name_given_on Connect>,
                                   "COM"                   : 0,
-                                  "Number_of_controllers" : 3
+                                  "Number_of_SMC100" : 3
                               }
     '''
 
@@ -79,8 +63,166 @@ class SMC100(Device):
         except:
           return "Could not connect to the Controller"
 
+    '''
+        userInfoP = {
+                        "Name" : <user_name_given_on Connect>,
+                        "Axis" : 3
+                    }
+    '''
+
+    
+    @command(dtype_in=str,dtype_out=int)  
+    def GetPosition(self,userInfoP):
+        # print(infoCamera)
+        uIP =  json.loads(userInfoP)
+        print(uIP)
+        return self.Controllers[uIP["Name"]].get_position_mm(uIP["Axis"])
+
+    '''
+        userInfoMA = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3,
+                        "Position"          : 3,
+                        "Wait_to_finish"    ; True
+                     }
+    '''
+
+    
+    @command(dtype_in=str,dtype_out=str)  
+    def MoveAbsolute_mm(self,userInfoMA):
+        # print(infoCamera)
+        uIMA =  json.loads(userInfoMA)
+        print(uIMA)
+        self.Controllers[uIMA["Name"]].move_absolute_mm(uIMA["Axis"],uIMA["Position"],uIMA["Wait_to_finish"])
+
+        return "Motor is moving to the position"
+    
+    '''
+        userInfoMTA = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3,
+                        "Position"          : 3
+                     }
+    '''
+
+    
+    @command(dtype_in=str,dtype_out=float)  
+    def GetMotionTimeForAbsoluteMove(self,userInfoMTA):
+        uIMTA=  json.loads(userInfoMTA)
+        print(uIMTA)
+        current_position = self.Controllers[uIMTA["Name"]].get_position_mm(uIMTA["Axis"])
+        print("relative movement: ")
+        relative_p = float(current_position)-uIMTA["Position"]
+        time_for_move = self.Controllers[uIMTA["Name"]].get_motion_time_for_relative_move(uIMTA["Axis"],relative_p)
+        return time_for_move
+    
+    '''
+        userInfoS = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3
+                     }
+    '''
 
 
+    def what_is_stattus(self,state):
+        if state == '0A':
+            return '  state: NOT REFERENCED from reset'
+        elif state == '0B':
+            return '  state: NOT REFERENCED from HOMING'
+        elif state == '0C':
+            return '  state: NOT REFERENCED from CONFIGURATION'
+        elif state == '0D':
+            return '  state: NOT REFERENCED from DISABLE'
+        elif state == '0E':
+            return '  state: NOT REFERENCED from READY'
+        elif state == '0F':
+            return '  state: NOT REFERENCED from MOVING'
+        elif state == '10':
+            return '  state: NOT REFERENCED ESP stage error'
+        elif state == '11':
+            return '  state: NOT REFERENCED from JOGGING'
+        elif state == '14':
+            return '  state: CONFIGURATION'
+        elif state == '1E':
+            return '  state: HOMING commanded from RS-232-C'
+        elif state == '1F':
+            return '  state: HOMING commanded by SMC-RC'
+        elif state == '28':
+            return '  state: MOVING'
+        elif state == '32':
+            return '  state: READY from HOMING'
+        elif state == '33':
+            return '  state: READY from MOVING'
+        elif state == '34':
+            return '  state: READY from DISABLE'
+        elif state == '35':
+            return '  state: READY from JOGGING'
+        elif state == '3C':
+            return '  state: DISABLE from READY'
+        elif state == '3D':
+            return '  state: DISABLE from MOVING'
+        elif state == '3E':
+            return '  state: DISABLE from JOGGING'
+        elif state == '46':
+            return '  state: JOGGING from READY'
+        elif state == '47':
+            return '  state: JOGGING from DISABLE'
+
+    @command(dtype_in=str,dtype_out=str)  
+    def GetStatus(self,userInfoS):
+        uIS=  json.loads(userInfoS)
+        print(uIS)
+        response = self.Controllers[uIS["Name"]].get_status(uIS["Axis"])
+        info_motor = self.what_is_stattus(response[1])
+        return info_motor
+    
+    
+    '''
+        userInfoMR = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3,
+                        "Position"          : 3,
+                        "Wait_to_finish"    ; True
+                     }
+    '''
+
+    @command(dtype_in=str,dtype_out=str)  
+    def MoveRelative_mm(self,userInfoMR):
+        uIMR=  json.loads(userInfoMR)
+        print(uIMR)
+        self.Controllers[uIMR["Name"]].move_relative_mm(uIMR["Axis"],uIMR["Position"],uIMR["Wait_to_finish"])
+        return "The motor is moving"
+    
+    '''
+        userInfoMTR = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3,
+                        "Position"          : 3
+                     }
+    '''
+
+    
+    @command(dtype_in=str,dtype_out=float)  
+    def GetMotionTimeForAbsoluteMove(self,userInfoMTR):
+        uIMTR=  json.loads(userInfoMTR)
+        print(uIMTR)
+        time_for_move = self.Controllers[uIMTR["Name"]].get_motion_time_for_relative_move(uIMTR["Axis"],uIMTR["Position"])
+        return time_for_move
+    
+
+    '''
+        userInfoH = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3,
+                        "Wait_to_finish"    ; True
+                     }
+    '''
+    
+    @command(dtype_in=str,dtype_out=float)  
+    def Home(self,userInfoH):
+        uIH=  json.loads(userInfoH)
+        print(uIH)
+        self.Controllers[uIH["Name"]].home(uIH["Axis"],uIH["Wait_to_finish"])
         
 if __name__ == "__main__":
     SMC100.run_server()
