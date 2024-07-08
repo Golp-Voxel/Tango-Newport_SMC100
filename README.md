@@ -1,6 +1,6 @@
 # Newport SMC100 Motor Controller - Tango Device Server
 
-This repository contains the driver for controlling a Standa 8SMC5-USB Controller with the Tango Control. After cloning this repository with the following command
+This repository contains the driver for controlling a  Newport SMC100 Controller with the Tango Control. After cloning this repository with the following command
 
 ```
 git clone https://github.com/Golp-Voxel/Tango-Newport_SMC100.git
