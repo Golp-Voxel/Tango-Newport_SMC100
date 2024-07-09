@@ -16,8 +16,8 @@ from tango.server import Device, attribute, command
 from tango.server import class_property, device_property
 
 
-import SMC100_Lib 
 
+from SMC100_Lib import init_connection, SMC100
 class SMC100(Device):
     Controllers = {}
 
@@ -51,14 +51,16 @@ class SMC100(Device):
                               }
     '''
 
-    
+
+
     @command(dtype_in=str,dtype_out=str)  
     def ConnectCamera(self,userInfoController):
         # print(infoCamera)
         uIC =  json.loads(userInfoController)
         print(uIC)
         try:
-          self.Controllers[uIC["Name"]] = SMC100_Lib.init_connection('COM'+str(uIC["COM"]),uIC["Number_of_controllers"])
+          self.Controllers[uIC["Name"]] = init_connection('COM'+str(uIC["COM"]),uIC["Number_of_controllers"])
+          print("All good")
           return "Controller has been connected successfully COM"+str(uIC["COM"])
         except:
           return "Could not connect to the Controller"
@@ -71,13 +73,12 @@ class SMC100(Device):
     '''
 
     
-    @command(dtype_in=str,dtype_out=int)  
+    @command(dtype_in=str,dtype_out=float)  
     def GetPosition(self,userInfoP):
         # print(infoCamera)
         uIP =  json.loads(userInfoP)
         print(uIP)
         return self.Controllers[uIP["Name"]].get_position_mm(uIP["Axis"])
-
     '''
         userInfoMA = {
                         "Name"              : <user_name_given_on Connect>,
@@ -110,10 +111,10 @@ class SMC100(Device):
     def GetMotionTimeForAbsoluteMove(self,userInfoMTA):
         uIMTA=  json.loads(userInfoMTA)
         print(uIMTA)
-        current_position = self.Controllers[uIMTA["Name"]].get_position_mm(uIMTA["Axis"])
+        current_position = float(self.Controllers[uIMTA["Name"]].get_position_mm(uIMTA["Axis"]))
         print("relative movement: ")
-        relative_p = float(current_position)-uIMTA["Position"]
-        time_for_move = self.Controllers[uIMTA["Name"]].get_motion_time_for_relative_move(uIMTA["Axis"],relative_p)
+        relative_p = abs(uIMTA["Position"]-float(current_position))
+        time_for_move = float(self.Controllers[uIMTA["Name"]].get_motion_time_for_relative_move(uIMTA["Axis"],relative_p))
         return time_for_move
     
     '''
@@ -203,11 +204,11 @@ class SMC100(Device):
 
     
     @command(dtype_in=str,dtype_out=float)  
-    def GetMotionTimeForAbsoluteMove(self,userInfoMTR):
+    def GetMotionTimeForRelativeMove(self,userInfoMTR):
         uIMTR=  json.loads(userInfoMTR)
         print(uIMTR)
         time_for_move = self.Controllers[uIMTR["Name"]].get_motion_time_for_relative_move(uIMTR["Axis"],uIMTR["Position"])
-        return time_for_move
+        return float(time_for_move)
     
 
     '''
@@ -218,12 +219,14 @@ class SMC100(Device):
                      }
     '''
     
-    @command(dtype_in=str,dtype_out=float)  
+    @command(dtype_in=str,dtype_out=str)  
     def Home(self,userInfoH):
         uIH=  json.loads(userInfoH)
         print(uIH)
         self.Controllers[uIH["Name"]].home(uIH["Axis"],uIH["Wait_to_finish"])
-        
+        return "Motor was moved to the Home."
+
+
 if __name__ == "__main__":
     SMC100.run_server()
 
