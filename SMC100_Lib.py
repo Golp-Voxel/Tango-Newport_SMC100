@@ -192,6 +192,7 @@ class SMC100(object):
 
     prefix = str(ID) + command
     tosend = prefix + str(argument)
+    print(tosend)
 
     # prevent certain commands from being retried automatically
     no_retry_commands = ['PR', 'OR', 'OT']
@@ -424,6 +425,18 @@ class SMC100(object):
   def get_position_mm(self,ID):
     dist_mm = float(self.sendcmd(ID,'TP', '?', expect_response=True, retry=10))
     return dist_mm
+  
+  def get_HOME_search_type(self,ID):
+    info = self.sendcmd(ID,'HT', '?', expect_response=True, retry=10)
+    return info
+  
+  def set_HOME_search_type(self,ID,info_user):
+    if info_user in range(0,5):
+      info = self.sendcmd(ID,'HT',str(info_user), expect_response=False, retry=10)
+    else:
+      info = "Error: Read the manuak for the command HT"
+      print(" Read the manuak for the command HT")
+    return info
 
   def get_position_um(self):
     return int(self.get_position_mm()*1000)
@@ -476,6 +489,7 @@ class SMC100(object):
     """
     pos_mm = floor(position_um)/1000
     return self.move_absolute_mm(ID, pos_mm, **kwargs)
+  
 
 
 # I think this is going to be redone 
@@ -614,6 +628,27 @@ class SMC100(object):
     print(resp)
     return
   
+  def get_negative_software_limit(self,ID):
+    resp = self.sendcmd(ID,'SL',"?", expect_response=True, retry=10)
+    print(resp)
+    return
+  
+  def set_negative_software_limit(self,ID,Backlash):
+    resp = self.sendcmd(ID,'SL',str(Backlash))
+    print(resp)
+    return
+  
+  
+  def get_positive_software_limit(self,ID):
+    resp = self.sendcmd(ID,'SR',"?", expect_response=True, retry=10)
+    print(resp)
+    return
+  
+  def set_positive_software_limit(self,ID,Backlash):
+    resp = self.sendcmd(ID,'SR',str(Backlash))
+    print(resp)
+    return
+  
 '''
 This CMD is not for PP
 
@@ -722,14 +757,39 @@ def tets_home(smc100,ID):
 def init_connection(Com,number_of_controller):
   smc100 = SMC100(Com, silent=False)
   for i in range(1,number_of_controller+1):
+     
     smc100.get_status(i)
-    smc100.home(i, waitStop=True)
+    # if i is not 3:
+    smc100.home(i, waitStop=False)
+    # # # # time.sleep(1)
+    # # # # smc100.stop(i)
+    if i == 3:
+      smc100.stop(i)
+    # # else:
+    #   smc100.reset_and_configure(3)
     time.sleep(0.4)
   return smc100
 
 # if __name__ == "__main__":
 #     # smc100 = SMC100('COM10', silent=False)
-#     smc100 = init_connection('COM10',3)
+#     smc100 = init_connection('COM5',3)
+#     smc100.leave_Config_state(3)
+  
+#     time.sleep(3)
+#     l = smc100.get_HOME_search_type(1)
+#     l = smc100.get_HOME_search_type(2)
+#     l = smc100.get_HOME_search_type(3)
+
+#     # smc100.enter_Config_state(1)
+#     # smc100.set_HOME_search_type(1,4)
+    
+#     # smc100.enter_Config_state(2)
+#     # smc100.set_HOME_search_type(2,4)
+    
+#     # smc100.enter_Config_state(3)
+#     # smc100.set_HOME_search_type(3,4)
+#     # smc100.get_negative_software_limit(2)
+#     # smc100.get_positive_software_limit(2)
 #     # config_BA("COM10",["0.00197","0.00185","0.00202"])
 #     # smc100.get_status(1)
 #     # t = smc100.get_motion_time_for_relative_move(1,5)

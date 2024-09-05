@@ -118,6 +118,21 @@ class SMC100(Device):
         return time_for_move
     
     '''
+        userInfoStop= {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3 or [1,2,3]
+                     }
+    '''
+
+    @command(dtype_in=str,dtype_out=str)  
+    def Stop(self,userInfoStop):
+        uStop=  json.loads(userInfoStop)
+        print(uStop)
+        for i in uStop["Axis"]:
+            self.Controllers[uStop["Name"]].stop(i)
+        return ""
+
+    '''
         userInfoS = {
                         "Name"              : <user_name_given_on Connect>,
                         "Axis"              : 3
@@ -215,7 +230,7 @@ class SMC100(Device):
         userInfoH = {
                         "Name"              : <user_name_given_on Connect>,
                         "Axis"              : 3,
-                        "Wait_to_finish"    ; True
+                        "Wait_to_finish"    : True
                      }
     '''
     
@@ -225,8 +240,45 @@ class SMC100(Device):
         print(uIH)
         self.Controllers[uIH["Name"]].home(uIH["Axis"],uIH["Wait_to_finish"])
         return "Motor was moved to the Home."
+    
 
+    @command(dtype_in=str,dtype_out=str)  
+    def Reset(self,userInfoH):
+        uIH=  json.loads(userInfoH)
+        print(uIH)
+        self.Controllers[uIH["Name"]].reset_and_configure(uIH["Axis"])
+        return "Motor was moved to the Home."
+    
+    '''
+        userInfoGHST = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3
+                     }
+    '''
 
+    @command(dtype_in=str,dtype_out=str)  
+    def GetHOMESearchType(self,userInfoGHST):
+        uIGHST=  json.loads(userInfoGHST)
+        print(uIGHST)
+        return str(self.Controllers[uIGHST["Name"]].get_HOME_search_type(uIGHST["Axis"]))
+    
+    '''
+        userInfoSHST = {
+                        "Name"              : <user_name_given_on Connect>,
+                        "Axis"              : 3,
+                        "HT"                : 1
+                     }
+    '''
+
+    @command(dtype_in=str,dtype_out=str)  
+    def SetHOMESearchType(self,userInfoSHST):
+        uISHST=  json.loads(userInfoSHST)
+        print(uISHST)
+        # self.Controllers[uISHST["Name"]].enter_Config_state(uISHST["Axis"])
+        info = str(self.Controllers[uISHST["Name"]].Set_HOME_search_type(uISHST["Axis"],uISHST["HT"]))
+        # self.Controllers[uISHST["Name"]].leave_Config_state(uISHST["Axis"])
+        return info
+    
 if __name__ == "__main__":
     SMC100.run_server()
 
